@@ -4,7 +4,11 @@
 
 We have performed profiling of eukaryotic and viral pathogens via euvipath across 3 studies.
 
-## HMP, 500 samples across 5 human tissues
-# GTEx, 8555 samples across 53 human tissues
-## Uran Microbiome, x samples accross urban habitat
+## HMP
+
+We have download 500 samples across 5 human tissues
+## GTEx
+We have downlaod 8555 samples across 53 human tissues
+## Uran Microbiome
+We haeve download x samples accross urban habitat
 
