@@ -6,9 +6,9 @@ Here we provide scripts and commands we used in our study "" to run existing mic
 # Compare to existing tools
 
 We have compared euViPath to the following microbiome profiling tools:
-* Metahplan2, which version
-* SURPI
-* Kraken
+* MetaPhlAn2, which version, https://bitbucket.org/biobakery/metaphlan2
+* SURPI, v, http://chiulab.ucsf.edu/surpi/
+* Kraken, v, https://ccb.jhu.edu/software/kraken/
 
 
 # Datasets
@@ -29,7 +29,16 @@ We haeve download x samples accross urban habitat
 
 # How to run microbimeprofiling tools 
 
+## SURPI
+To install the tools we run 
+
+To run the tool:
+
+```
+```
+
 ## Metahplan2
+## Kraken
 
 
 
