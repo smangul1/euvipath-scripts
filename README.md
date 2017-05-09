@@ -78,15 +78,22 @@ Align: bwa mem {Index Base Name} reads.fa > bwa-viruses.sam
 # Dealing with multimapped reads by BWA
 
 Method 1: Discard multimapped reads; only keep uniquely-mapped reads
+
 Method 2: Randomly pick a genome to assign the read to
+
 Method 3: Let BWA choose which genome to map to
+
 Results forthcoming...
 
 
 # K-mer method for improved runtime
 
 Precomputation: count k-mers in reference using Jellyfish
+
 Count k-mers present in each read
+
 Find which genomes the reads could possibly come from (no false negatives, probaably some false positives, look for at least one k-mer match)
+
 Then for BWA only align the reads to the genomes that they could possibly come from
+
 Determine which k-mer size produces the best speed
