@@ -83,7 +83,9 @@ Method 2: Randomly pick a genome to assign the read to
 
 Method 3: Let BWA choose which genome to map to
 
-Results forthcoming...
+Results: letting BWA choose which genome to map to results in accurate relative abundances but also includes a number of false positives. Getting rid of all multimapped reads gets rid of most or all false positives, but worsens relative abundance estimations. Randomly picking a genome to assign a multimapped read is a middle path, but we would hope to do better than random.
+
+New strategy: first, only map the reads that aren't multimapped. Using the reads that were multimapped, probabilistically assign them to one of the genomes, with the probability proportional to the relative abunance of each genome. This appears to achieve a low false positive rate AND strong relative abundance estimation.
 
 
 # K-mer method for improved runtime
