@@ -7,7 +7,7 @@
 #$ -m abe
 #$ -l h_data=10G,h_rt=24:00:00
 
-time ~/kraken-0.10.5-beta/kraken --db ~/scratch/minikraken_20141208 ~/scratch/kraken-data/timing/simBA5_timing.fa > kraken-simba-timing-otus.txt
+time ~/kraken-0.10.5-beta/kraken --db ~/scratch/minikraken_20141208 ~/scratch/data/grinder/grinder-viruses-intersect-reads.fa > kraken-viruses-intersect-otus.txt
 
-~/kraken-0.10.5-beta/kraken-translate --db ~/scratch/minikraken_20141208 kraken-simba-timing-otus.txt > kraken-simba-timing-results.kraken
+~/kraken-0.10.5-beta/kraken-translate --db ~/scratch/minikraken_20141208 kraken-viruses-intersect-otus.txt > kraken-viruses-intersect-results.kraken
 

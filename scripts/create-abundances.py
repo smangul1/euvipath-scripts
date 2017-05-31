@@ -1,6 +1,19 @@
 #from Bio import Entrez
 import numpy as np
-import sys
+import argparse, sys
+
+
+def parseargs():    # handle user arguments
+    parser = argparse.ArgumentParser(description='Compute abundance estimations for species in a sample.')
+    parser.add_argument('reference', help='Reference FASTA format file. Required.')
+    parser.add_argument('size', type=int, help='Number of TaxIDs to select. Required.')
+    parser.add_argument('mean', type=float, help='Mean species abundance. Required.')
+    parser.add_argument('sd', type=float, help='Standard deviation of species abundance. Required.')
+    parser.add_argument('--options', default='NONE', help='Restrict species options.')
+    parser.add_argument('--output', default='abundance-file-grinder.txt', help='Output file.')
+    args = parser.parse_args()
+    return args
+
 
 def find_species(taxid):
 	handle = Entrez.efetch(db='nucleotide', id=[taxid], rettype='gb', retmode='text')
@@ -10,22 +23,24 @@ def find_species(taxid):
         species = (' '.join(line.split(' ')[1:])).strip()
 	return species
 
-arg, size, mu, sd = '', 0, 0.0, 0.0
-try:
-	arg = sys.argv[1]
-	size = int(sys.argv[2])
-	mu = float(sys.argv[3])
-	sd = float(sys.argv[4])
-except:
-	print 'Must provide valid input file, # of organisms, mean, and standard deviation' 
-	print 'i.e. "python create-abundances.py in.fa 40 1.0 2.0" '
-	sys.exit()
+args = parseargs()
+size, mu, sd = args.size, args.mean, args.sd
 
-with open(arg, 'r') as infile:
-	names = []
+with open(args.reference, 'r') as infile:
+	names, intersect = [], []
+	if args.options != 'NONE':
+		with open(args.options, 'r') as optfile:
+			for line in optfile:
+				intersect.append(line.strip())
 	for line in infile:
 		if line.startswith('>'):
-			names.append(line.split(' ')[0][1:])
+			if intersect == []: 
+				names.append(line.split(' ')[0][1:])
+				continue
+			for i in intersect:
+				if i in line:
+					names.append(line.split(' ')[0][1:])
+					break
 	
 	selected, species = [], []
 	#Entrez.email = 'nathanl2012@gmail.com'
@@ -52,7 +67,7 @@ with open(arg, 'r') as infile:
 		abundances[i] = abundances[i] * 100.0 / sum_ab
 	abundances = sorted(abundances, reverse=True)
 	
-	outfile = open('abundance-file-grinder.txt', 'w')
+	outfile = open(args.output, 'w')
 	for i in range(len(abundances)):
 		outfile.write(selected[i].strip() + '\t' + str(abundances[i]) + '\n')
 	outfile.close()

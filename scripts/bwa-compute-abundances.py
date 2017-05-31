@@ -1,11 +1,28 @@
 from Bio import Entrez
 from Bio import SeqIO
+import argparse
 import numpy as np
 import operator
 import sys
 import time
 
-CUTOFF = 0.0#0.001
+
+AB_CUTOFF = 0#.0001
+READ_CUTOFF = 10
+NUM2NAME = {}
+
+
+def parseargs():    # handle user arguments
+    parser = argparse.ArgumentParser(description='Compute abundance estimations for species in a sample.')
+    parser.add_argument('bwa', help='BWA abundances results file. Required.')
+    parser.add_argument('ids2len', help='File mapping tax IDs to genome length. Required.')
+    parser.add_argument('spe2ids', help='File mapping species names to tax IDs. Required.')
+    parser.add_argument('--abundances', default='abundances.txt', help='Output abundances file. Default: abundances.txt')
+    parser.add_argument('--assignments', default='assigned_reads.txt', help='Read classification file.')
+    parser.add_argument('--paired', action='store_true', default=False, help='Use if reads are paired end.')
+    args = parser.parse_args()
+    return args
+
 
 def find_taxid(tag):
         if not '|' in tag:
@@ -17,55 +34,56 @@ def find_taxid(tag):
                                 return sp
         return tag
 
-infile, ext = '', ''
-try:
-	fname = sys.argv[1]
-	if '.' not in fname or fname.split('.')[1] not in ['sam']:
-		raise Exception
-	ref = sys.argv[2]
-	if '.' not in ref or ref.split('.')[1] not in ['fa', 'fna', 'fasta']:
-		raise Exception
-	ext = fname.split('.')[1]
-	infile = open(fname, 'r')
-	refdb = open(ref, 'r')
-except:
-	print 'Error: must specify valid .sam file to read and .fa/.fna/.fasta reference database'
-	sys.exit()
-abundances = 'abundances.txt'
-try:
-	abundances = sys.argv[3]
-except:
-	abundances = 'abundances.txt'
-outfile = open(abundances, 'w')
 
-genlens, curtag = {}, ''
-for line in refdb:
-	if line.startswith('>'):
-		curtag = find_taxid(line.split(' ')[0][1:])
-		if curtag in genlens:
-			print 'Warning: TaxID ' + curtag + ' occurrs twice in reference'
-		else:
-			genlens[curtag] = 0
-	else:
-		genlens[curtag] += len(line.strip())
+def find_int(readnum):
+	original = readnum
+	if readnum.startswith('>'):
+		readnum = readnum[1:]
+	for splitter in ['.', '/']:
+		if splitter in readnum:
+			readnum = readnum.split(splitter)[1]
+	num = filter(str.isdigit, readnum)
+	NUM2NAME[num] = original
+	return int(num)
 
-ids, ids2abs, spe2id, spe2abs = [], {}, {}, {}
-prev_read_num, prev_tag, prev_count, ignore = 0, '', 0.0, False
-multimapped, read_assignments = {}, {}
+
+args = parseargs()
+infile = open(args.bwa, 'r')
+outfile = open(args.abundances, 'w')
+reflens = open(args.ids2len, 'r')
+refs2i = open(args.spe2ids, 'r')
+rdout = open(args.assignments, 'w')
+
+print 'Reading genome lengths file...'
+genlens = {}
+for line in reflens:
+	splits = line.strip().split(':')
+	genlens[splits[0]] = int(splits[1])
+reflens.close()
+print 'Done reading genome lengths file.'
+
+ids, ids2abs, spe2id, ids2spe, spe2abs = [], {}, {}, {}, {}
+prev_read_num, prev_tag, prev_count, ignore = '', '', 0.0, False
+multimapped, read_assignments, ids2reads, read_ordering = {}, {}, {}, []
 lc = 0
-
+print 'Reading sam file...'
 for line in infile:
 	lc += 1
-	if lc % 100000 == 0:
-		print 'Done reading ' + str(lc) + ' lines'
+	if lc % 1000000 == 0:
+		print 'Done reading ' + str(lc) + ' lines of sam file'
 	if line.startswith('@'):
 		continue
 	splits = line.split('\t')
 	tag = find_taxid(splits[2])
-	read_num = int(splits[0])
+	if tag == '*':
+		continue
+	#read_num = int(splits[0])
+	read_num = splits[0]
+	read_ordering.append(read_num)
 	if read_num == prev_read_num and tag == prev_tag:
-		if prev_count < 2.0:
-			prev_count += 1.0
+		pass
+		#if prev_count < 2.0 and args.paired == True:
+		#	prev_count += 1.0
 	elif read_num == prev_read_num and tag != prev_tag:
 		ignore = True
 		strnum = str(prev_read_num)
@@ -75,8 +93,12 @@ for line in infile:
 			multimapped[strnum].append(prev_tag)
 		prev_tag = tag
 	else:
-		if not(prev_read_num == 0 or ignore == True):
-			read_assignments[str(prev_read_num)] = [prev_tag]
+		if not(prev_read_num == '' or ignore == True):
+			read_assignments[prev_read_num] = [prev_tag]
+			if prev_tag not in ids2reads:
+				ids2reads[prev_tag] = [prev_read_num]
+			else:
+				ids2reads[prev_tag].append(prev_read_num)
 			if prev_tag not in ids:
 				ids.append(prev_tag)
 			if prev_tag in ids2abs:
@@ -84,14 +106,20 @@ for line in infile:
 			else:
 				ids2abs[prev_tag] = prev_count
 		elif ignore == True:
-			multimapped[str(prev_read_num)].append(prev_tag)
+			multimapped[prev_read_num].append(prev_tag)
                 prev_read_num = read_num
                 prev_tag = tag
                 prev_count = 1.0
                 ignore = False
+infile.close()
+print 'Done reading sam file.'
 
-if not(prev_read_num == 0 or ignore == True):
-	read_assignments[str(prev_read_num)] = [prev_tag]
+if not(prev_read_num == '' or ignore == True):
+	read_assignments[prev_read_num] = [prev_tag]
+	if prev_tag not in ids2reads:
+                ids2reads[prev_tag] = [prev_read_num]
+        else:
+                ids2reads[prev_tag].append(prev_read_num)
         if prev_tag not in ids:
                 ids.append(prev_tag)
        	if prev_tag in ids2abs:
@@ -99,8 +127,28 @@ if not(prev_read_num == 0 or ignore == True):
        	else:
                 ids2abs[prev_tag] = prev_count
 elif ignore == True:
-	multimapped[str(read_num)].append(prev_tag)
+	multimapped[read_num].append(prev_tag)
 
+print 'Deleting species/reads with insufficient evidence...'
+for spe in spe2id.keys():
+        if not (spe in spe2abs):
+                spe2abs[spe] = 0.0
+        for taxid in spe2id[spe]:
+                if taxid in ids2abs:
+                        spe2abs[spe] += ids2abs[taxid]
+for spe in spe2abs:
+	if spe2abs[spe] < READ_CUTOFF:
+		for taxid in spe2abs[spe]:
+			if taxid in ids2abs:
+				for read in ids2reads[taxid]:
+					del read_assignments[read]
+				ids2abs[taxid] = 0
+for taxid in ids:
+	if taxid in ids2abs and ids2abs[taxid] == 0:
+		del ids2abs[taxid]
+print 'Done deleting species/reads.'
+
+print 'Assigning multimapped reads...'
 added = {}
 for read in multimapped.keys():
 	randnum = np.random.random()
@@ -118,9 +166,9 @@ for read in multimapped.keys():
 		if ab >= randnum:
 			read_assignments[read] = [key]
 			if key in added:
-				added[key] += 2.0
+				added[key] += 1.0 #2.0
 			else:
-				added[key] = 2.0
+				added[key] = 1.0 #2.0
 			break
 		else:
 			randnum -= ab
@@ -128,6 +176,7 @@ for read in multimapped.keys():
 for key in added.keys():
 	val = added[key]
 	ids2abs[key] += val
+print 'Multimapped reads assigned.'
 
 for taxid in ids2abs.keys():
 	ids2abs[taxid] /= genlens[taxid]  # normalize by genome length
@@ -140,48 +189,59 @@ for taxid in ids2abs.keys():
 	ids2abs[taxid] = float(ids2abs[taxid]) * 100.0 / total_ab  # normalize abundances
 sorted_ids2abs = sorted(ids2abs.items(), key=operator.itemgetter(1), reverse=True)
 
-Entrez.email = 'nathanl2012@gmail.com'
-print 'Tax IDs found: ' + str(ids) + '\n'
-for taxid in ids:
-	print 'Looking up NCBI entry for: ' + taxid + ' (' + str(ids.index(taxid)+1) + '/' + str(len(ids)) + ')'
-	handle = Entrez.efetch(db='nucleotide', id=[taxid], rettype='gb', retmode='text')
-	line = ''
-	while 'ORGANISM' not in line:
-		line = handle.readline().strip()
-	species = (' '.join(line.split(' ')[1:])).strip()
-	print 'Species: ' + species
-	if species in spe2id:
-		spe2id[species].append(taxid)
-	else:
-		spe2id[species] = [taxid]
-	time.sleep(0.33)
+print 'Reading species to taxids file...'
+for line in refs2i:
+	splits = line.strip().split(':')
+	taxids = splits[-1].split(' ')
+	spe2id[':'.join(splits[:-1])] = taxids
+	for taxid in taxids:
+		ids2spe[taxid] = splits[0]
+refs2i.close() 
+print 'Done reading species to taxids file.'
 
+spe2abs = {}
 for spe in spe2id.keys():
 	if not (spe in spe2abs):
 		spe2abs[spe] = 0.0
 	for taxid in spe2id[spe]:
-		spe2abs[spe] += ids2abs[taxid]
+		if taxid in ids2abs:
+			spe2abs[spe] += ids2abs[taxid]
 sorted_spe2abs = sorted(spe2abs.items(), key=operator.itemgetter(1), reverse=True)
 
-for spe in spe2id:
-	for taxid in spe2id[spe]:
-		for read in read_assignments.keys():
-			if taxid in read_assignments[read]:
-				read_assignments[read].append(spe)
+print 'Computing read assignments to species...'
+for read in read_assignments.keys():
+	read_assignments[read].append(ids2spe[read_assignments[read][0]])
+print 'Done computing read assignments to species.'
 
-sorted_readassign = [str(j) for j in sorted([int(i) for i in read_assignments.keys()])]
-rdout = open('assigned_reads.txt', 'w')
+print 'Writing read assignments...'
+#sorted_readassign = [str(j) for j in sorted([find_int(i) for i in read_assignments.keys()])]
+#rdout = open(args.assignments, 'w')
 rdout.write('Read number\tNCBI TaxID\tSpecies\n')
-for read in sorted_readassign:
-	rdout.write(read + '/1\t\t' + '\t'.join(read_assignments[read]) + '\n')
-	rdout.write(read + '/2\t\t' + '\t'.join(read_assignments[read]) + '\n')
+prevline = ''
+for read in read_ordering:
+	#if read not in read_assignments.keys():
+	#	continue
+	try:
+		read_assignments[read]
+	except:
+		continue
+	line = read + '\t' + '\t'.join(read_assignments[read]) + '\n'
+	if line == prevline:
+		continue
+	if args.paired == False:
+		rdout.write(line)
+	else:
+		rdout.write(read + '/1\t' + '\t'.join(read_assignments[read]) + '\n')
+		rdout.write(read + '/2\t' + '\t'.join(read_assignments[read]) + '\n')
+	prevline = line
 rdout.close()
+print 'Done writing read assignments.'
 
-
+print 'Writing genome and species abundances...'
 outfile.write('Abundances by Species:\n')
 for line in sorted_spe2abs:
 	desc = line[0]
-	if line[1] > CUTOFF:
+	if line[1] > AB_CUTOFF:
 		outfile.write(str(desc) + '\t' + str(line[1]) + '\n')
 
 outfile.write('\n\nAbundances by NCBI Taxonomic ID:\n')
@@ -189,10 +249,8 @@ for line in sorted_ids2abs:
 	desc = line[0]
 	if '|' in desc:
 		desc = desc.split('|')[0]
-	if line[1] > CUTOFF:
+	if line[1] > AB_CUTOFF:
 		outfile.write(str(desc) + '\t' + str(line[1]) + '\n')
-
-infile.close()
-refdb.close()
 outfile.close()
+print 'Done.'
 #

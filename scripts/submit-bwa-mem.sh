@@ -10,7 +10,7 @@
 . /u/local/Modules/default/init/modules.sh
 module load bwa
 
-#bwa mem ~/scratch/results/archaea-kraken/bwa/archaea-kraken.fa ~/scratch/data/grinder/grinder-archaea-kraken-low-reads.fa > bwa-archaea-kraken-low.sam
+time bwa mem -a -p ~/scratch/results/intersect-viruses/bwa/viruses_15062016.fa ~/scratch/data/grinder/grinder-viruses-intersect-reads.fa > bwa-viruses-intersect-paired-all.sam
 
-bwa mem -a ~/scratch/results/virus-res/bwa/viruses_15062016.fa ~/scratch/data/grinder/grinder-viruses-high-reads.fa > bwa-viruses-high-all.sam
+#time bwa mem -a ~/scratch/data/bwa/ref_intersect.fa ~/scratch/data/nycsub/SRR1749599.fasta > bwa-intersect-nycsub-plague-SRR1749599-all.sam
 

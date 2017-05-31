@@ -9,10 +9,13 @@ from Bio import SeqIO
 def parseargs():    # handle user arguments
     parser = argparse.ArgumentParser(description='Compute errors for taxonomy results.')
     parser.add_argument('grinder_ranks', help='Ground truth grinder ranks file. Required.')
+    parser.add_argument('spe2ids', help='File mapping species to tax IDs. Required.')
     parser.add_argument('--base_dir', default='NONE', help='Base directory of all results files.')
     parser.add_argument('--bowtie', default='NONE', help='Bowtie output for metaphlan.')
     parser.add_argument('--bwa', default='NONE', help='BWA abundances results file.')
-    parser.add_argument('-d', '--diamond', default='NONE', help='Diamond abundances results file.')
+    parser.add_argument('--debug', default=False, action='store_true', help='Debug option (prints a lot)')
+    parser.add_argument('--diamond', default='NONE', help='Diamond abundances results file.')
+    parser.add_argument('-i', '--intersect', default='NONE', help='File to output intersection of results to.')
     parser.add_argument('-k', '--kraken', default='NONE', help='Kraken results file.')
     parser.add_argument('-m', '--metaphlan', default='NONE', help='Metaphlan results file.')
     parser.add_argument('-o', '--output', default='results.txt', help='Output results file. Default: results.txt')
@@ -38,14 +41,20 @@ def parse_abundances(infile, method, spe2abs):
                         continue
                 splits = line.strip().split('\t')
                 spe = splits[0]
-                spe = spe.replace('-', ' ')
-                short_spe = ' '.join(spe.split(' ')[:2])
+                #spe = spe.replace('-', ' ')
+                #short_spe = ' '.join(spe.split(' ')[:2])
                 ab = float(splits[1])
                 if not (spe in spe2abs):
-                        if not (short_spe in spe2abs):
-                                spe2abs[spe] = {method: ab}
-                        else:
-                                spe2abs[short_spe][method] = ab
+			assigned = False
+			for fullspe in spe2abs:
+				if spe in fullspe or fullspe in spe:
+					spe2abs[fullspe][method] = ab
+					assigned = True
+			if assigned == False:
+                        #if not (short_spe in spe2abs):
+                        	spe2abs[spe] = {method: ab}
+                        #else:
+                        #        spe2abs[short_spe][method] = ab
                 else:
                         spe2abs[spe][method] = ab
 	return spe2abs
@@ -66,7 +75,18 @@ if args.kraken != 'NONE':
 Entrez.email = 'nathanl2012@gmail.com'
 
 grinder = open(args.grinder_ranks, 'r')
-ids, spe2id, ids2abs, spe2abs = [], {}, {}, {}
+ids, spe2id, ids2spe, ids2abs, spe2abs = [], {}, {}, {}, {}
+refs2i = open(args.spe2ids, 'r')
+for line in refs2i:
+        splits = line.strip().split(':')
+        #taxids = splits[1].split(' ')
+        #spe2id[splits[0]] = taxids
+        taxids = splits[-1].split(' ')
+        spe2id[':'.join(splits[:-1])] = taxids
+        for taxid in taxids:
+                ids2spe[taxid] = splits[0]
+refs2i.close()
+
 for line in grinder:
 	if line.startswith('#'):
 		continue
@@ -78,25 +98,8 @@ for line in grinder:
 		sys.exit()
 	ids.append(taxid)
 	ids2abs[taxid] = {'grinder':ab}
+	spe2abs[ids2spe[taxid]] = {'grinder':ab}
 grinder.close()
-
-if args.metaphlan != 'NONE':
-	metaphlan = open(args.metaphlan, 'r')
-	for line in metaphlan:
-		if 't__' in line or not ('s__' in line):
-			continue
-		info = line.strip().split('s__')[1].split('\t')
-		ab = float(info[1])
-		spe = ' '.join(info[0].split('_'))
-		#if spe == 'Eremothecium gossypii':
-		#	spe = 'Ashbya gossypii'
-		#if spe == 'Vibrio phage 11895 B1':
-		#	spe = 'Vibrio phage 11895-B1'
-		if not (spe in spe2abs):
-			spe2abs[spe] = {'metaphlan': ab}
-		else:
-			spe2abs[spe]['metaphlan'] = ab
-	metaphlan.close()
 
 if args.diamond != 'NONE':
 	spe2abs = parse_abundances(args.diamond, 'diamond', spe2abs)
@@ -105,86 +108,38 @@ if args.bwa != 'NONE':
 if args.kraken != 'NONE':
         spe2abs = parse_abundances(args.kraken, 'kraken', spe2abs)
 
-'''
-if args.diamond != 'NONE':
-	abundances = open(args.diamond, 'r')
-	for line in abundances:
-		if len(line) < 5:  # line after species abundances
-			break
-		if line.startswith('Abundances by Species:'):
-			continue
-		splits = line.strip().split('\t')
-		spe = splits[0]
-		spe = spe.replace('-', ' ')
-		short_spe = ' '.join(spe.split(' ')[:2])
-		ab = float(splits[1])
-		if not (spe in spe2abs):
-			if not (short_spe in spe2abs):
-				spe2abs[spe] = {'diamond': ab}
-			else:
-				spe2abs[short_spe]['diamond'] = ab
-		else:
-			spe2abs[spe]['diamond'] = ab
-
-if args.bwa != 'NONE':
-        abundances = open(args.bwa, 'r')
-        for line in abundances:
-                if len(line) < 5:  # line after species abundances
-                        break
-                if line.startswith('Abundances by Species:'):
+if args.metaphlan != 'NONE':
+        metaphlan = open(args.metaphlan, 'r')
+        for line in metaphlan:
+                if 't__' in line or not ('s__' in line):
                         continue
-                splits = line.strip().split('\t')
-                spe = splits[0]
-		spe = spe.replace('-', ' ')
-                short_spe = ' '.join(spe.split(' ')[:2])
-                ab = float(splits[1])
-                if not (spe in spe2abs):
-                        if not (short_spe in spe2abs):
-                                spe2abs[spe] = {'bwa': ab}
-                        else:
-                                spe2abs[short_spe]['bwa'] = ab
-                else:
-                        spe2abs[spe]['bwa'] = ab
-'''
+                info = line.strip().split('s__')[1].split('\t')
+                ab = float(info[1])
+                spe = ' '.join(info[0].split('_'))
+                #if spe == 'Eremothecium gossypii':
+                #       spe = 'Ashbya gossypii'
+                #if spe == 'Vibrio phage 11895 B1':
+                #       spe = 'Vibrio phage 11895-B1'
+		assigned = False
+		for fullspe in spe2abs:
+			accept = True
+			splits = spe.split(' ')
+			for split in splits:
+				if split not in fullspe:
+					accept = False
+			if accept == True:
+			#if ' '.join(spe.split(' ')[:2]) in fullspe:
+				spe2abs[fullspe]['metaphlan'] = ab
+				assigned = True
+				break
 
-#print 'Tax IDs found: ' + str(ids) + '\n'
-for taxid in ids:
-        #print 'Looking up NCBI entry for: ' + taxid + ' (' + str(ids.index(taxid)+1) + '/' + str(len(ids)) + ')'
-        handle = Entrez.efetch(db='nucleotide', id=[taxid], rettype='gb', retmode='text')
-        line = ''
-        while 'ORGANISM' not in line:
-                line = handle.readline().strip()
-        species = (' '.join(line.split(' ')[1:])).strip()
-	species = species.replace('-', ' ')
-	short_spe = ' '.join(species.split(' ')[:2])
-	if short_spe in spe2abs:
-		species = short_spe
-        #print 'Species: ' + species
-        if species in spe2id:
-                spe2id[species].append(taxid)
-        else:
-                spe2id[species] = [taxid]
-        time.sleep(0.1)#0.33
-#handle = Entrez.efetch(db='nucleotide', id=[', '.join(ids)], rettype='fasta')
-#records = list(SeqIO.parse(handle, "fasta"))
-#for rec in range(len(records)):
-#	#species = ' '.join(records[rec].description.split(' ')[1:3])
-#	species = ' '.join(records[rec].description.split(',')[0].split(' ')[1:])
-#	if species in spe2id:
-#		spe2id[species].append(ids[rec])
-#	else:
-#		spe2id[species] = [ids[rec]]
-
-for spe in spe2id.keys():
-	if not (spe in spe2abs):
-		spe2abs[spe] = {}
-	for taxid in spe2id[spe]:
-		id_dict = ids2abs[taxid]
-		for key in id_dict.keys():
-			if key in spe2abs[spe]:
-				spe2abs[spe][key] += id_dict[key]
-			else:
-				spe2abs[spe][key] = id_dict[key]
+		if assigned == False:
+			spe2abs[spe] = {'metaphlan': ab}
+                #if not (spe in spe2abs):
+                #        spe2abs[spe] = {'metaphlan': ab}
+                #else:
+                #        spe2abs[spe]['metaphlan'] = ab
+        metaphlan.close()
 
 for spe in spe2abs.keys():
 	if 'grinder' not in spe2abs[spe].keys():
@@ -239,18 +194,18 @@ for m in methods:
 	print 'Precision/Recall: ' + str(precision) + '/' + str(recall)
 	print 'F1-score: ' + str(fscore)
 
-#print spe2abs
-'''
-print ids
-print '\n'
-print ids2abs
-print '\n'
-print spe2id
-print '\n'
-print spe2abs
-print '\n'
-print l1err
-print '\n'
-print tpfptnfn
-'''
+if args.intersect != 'NONE':
+	intfile = open(args.intersect, 'w')
+	for spe in spe2abs:
+		write = True
+		for m in methods:
+			if m not in spe2abs[spe] or spe2abs[spe][m] == 0.0:
+				write = False
+		if write == True:
+			intfile.write(spe + '\n')
+	intfile.close()
+
+if args.debug == True:
+	for spe in spe2abs:
+		print spe + ': ' + str(spe2abs[spe])
 #
