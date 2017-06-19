@@ -17,5 +17,5 @@ source ~/.bash_profile
 
 #time ~/metaphlan2/metaphlan2.py ~/scratch/data/nycsub/SRR1749599.fasta --bowtie2out bowtie2-nycsub-plague-SRR1749599.bz2 --nproc 20 --input_type fasta > metaphlan-nycsub-plague-SRR1749599-profile.txt
 
-time ~/metaphlan2/metaphlan2.py ~/scratch/data/grinder/grinder-viruses-intersect-reads.fa --bowtie2out bowtie2-viruses-intersect.bz2 --nproc 20 --input_type fasta > metaphlan-viruses-intersect-profile.txt
+time ~/metaphlan2/metaphlan2.py ~/scratch/data/grinder/grinder-viruses-intersect-mutated10-reads.fa --bowtie2out bowtie2-viruses-intersect-mutated10.bz2 --nproc 20 --input_type fasta > metaphlan-viruses-intersect-mutated10-profile.txt
 #

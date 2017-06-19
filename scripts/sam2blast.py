@@ -43,6 +43,8 @@ for line in sam:
 	if line.startswith('@'):
 		continue
 	splits = line.split('\t')
+	if splits[2] == '*':
+		continue
 	out = ['' for i in range(12)]
 	pval = str(math.exp(-float(splits[4])))
 	out = [splits[0], splits[2]]

@@ -6,6 +6,10 @@ import time
 from Bio import Entrez
 from Bio import SeqIO
 
+
+KRAKEN_CUTOFF = 0.01
+
+
 def parseargs():    # handle user arguments
     parser = argparse.ArgumentParser(description='Compute errors for taxonomy results.')
     parser.add_argument('grinder_ranks', help='Ground truth grinder ranks file. Required.')
@@ -15,6 +19,7 @@ def parseargs():    # handle user arguments
     parser.add_argument('--bwa', default='NONE', help='BWA abundances results file.')
     parser.add_argument('--debug', default=False, action='store_true', help='Debug option (prints a lot)')
     parser.add_argument('--diamond', default='NONE', help='Diamond abundances results file.')
+    parser.add_argument('--eukaryotes', default=False, action='store_true', help='Use for eukaryote results.')
     parser.add_argument('-i', '--intersect', default='NONE', help='File to output intersection of results to.')
     parser.add_argument('-k', '--kraken', default='NONE', help='Kraken results file.')
     parser.add_argument('-m', '--metaphlan', default='NONE', help='Metaphlan results file.')
@@ -44,12 +49,19 @@ def parse_abundances(infile, method, spe2abs):
                 #spe = spe.replace('-', ' ')
                 #short_spe = ' '.join(spe.split(' ')[:2])
                 ab = float(splits[1])
+		if method == 'kraken' and args.eukaryotes:
+			ab /= 100.0
+		if method == 'kraken' and ab < KRAKEN_CUTOFF:
+			continue
                 if not (spe in spe2abs):
 			assigned = False
 			for fullspe in spe2abs:
 				if spe in fullspe or fullspe in spe:
 					spe2abs[fullspe][method] = ab
 					assigned = True
+				elif args.eukaryotes and ' ' in spe and ' ' in fullspe and spe.split(' ')[1] == fullspe.split(' ')[1]:
+                                        spe2abs[fullspe][method] = ab
+                                        assigned = True
 			if assigned == False:
                         #if not (short_spe in spe2abs):
                         	spe2abs[spe] = {method: ab}
@@ -114,7 +126,9 @@ if args.metaphlan != 'NONE':
                 if 't__' in line or not ('s__' in line):
                         continue
                 info = line.strip().split('s__')[1].split('\t')
-                ab = float(info[1])
+                ab = float(info[1]) #/ 100.0
+		if args.eukaryotes:
+			ab /= 100.0
                 spe = ' '.join(info[0].split('_'))
                 #if spe == 'Eremothecium gossypii':
                 #       spe = 'Ashbya gossypii'
@@ -127,6 +141,8 @@ if args.metaphlan != 'NONE':
 			for split in splits:
 				if split not in fullspe:
 					accept = False
+			if args.eukaryotes and ' ' in fullspe and len(splits) > 1 and splits[1] == fullspe.split(' ')[1]:
+				accept = True
 			if accept == True:
 			#if ' '.join(spe.split(' ')[:2]) in fullspe:
 				spe2abs[fullspe]['metaphlan'] = ab
@@ -175,8 +191,11 @@ for spe in spe2abs.keys():
 			tpfptnfn[m][3] += 1.0
 
 for m in methods:
-	print '\nResults for ' + m + ':'
-	print 'L1 error: ' + str(l1err[m])
+	if m == 'bwa':
+		print '\nResults for MiCoP:'
+	else:
+		print '\nResults for ' + m + ':'
+	print 'L1 error: ' + str(l1err[m] / 100.0)
 	print '[TP,FP,TN,FN]: ' + str(tpfptnfn[m])
 	vals = tpfptnfn[m]
 	if vals[0] == 0.0 and vals[1] == 0.0:

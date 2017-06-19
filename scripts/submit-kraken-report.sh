@@ -7,5 +7,5 @@
 #$ -m abe
 #$ -l h_data=10G,h_rt=24:00:00
 
-~/kraken-0.10.5-beta/kraken-report --db ~/scratch/minikraken_20141208 ~/scratch/results/virus-res/kraken-viruses-low-otus.txt
+~/kraken-0.10.5-beta/kraken-report --db ~/scratch/minikraken_20141208 ~/scratch/results/mutated/kraken-viruses-intersect-mutated10-otus.txt
 
